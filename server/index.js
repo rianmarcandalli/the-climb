@@ -10,19 +10,42 @@ const DB_PATH = path.join(DATA_DIR, 'db.json')
 const DIST_DIR = path.join(__dirname, '..', 'dist')
 const PORT = process.env.PORT || 3001
 
+const TARGETS = {
+  revenue: 10000,
+  closes: 8,
+  dials: 1500,
+  conversations: 300,
+  appointments: 60,
+  shows: 40,
+}
+
+// Real closed deals, baked in. Free hosting wipes the filesystem on redeploy/sleep,
+// so making these the default means the server always comes back up with the real book.
+const BASELINE_DEALS = [
+  { prospect: 'Laeshawn William', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Robert Andrews', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Jecon Kebreab', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Barath', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Brayden Smith', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Marcus Nays', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Carter', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Joseph', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Anthony', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Josh Cruz', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
+  { prospect: 'Daniel Yoon', value: 3500, collected: 1800, commission: 10, notes: 'Payment plan, paying over time' },
+  { prospect: 'Landon', value: 5000, collected: 500, commission: 10, notes: '$500 down' },
+  { prospect: 'Chasen', value: 5000, collected: 500, commission: 10, notes: '$500 down' },
+].map((d, i) => ({ id: `base-${String(i + 1).padStart(2, '0')}`, date: '2026-06-23', ...d }))
+
 const DEFAULT_DB = {
-  deals: [],
+  deals: BASELINE_DEALS,
   activity: [],
   followups: [],
-  targets: {
-    revenue: 10000,
-    closes: 8,
-    dials: 1500,
-    conversations: 300,
-    appointments: 60,
-    shows: 40,
-  },
+  targets: TARGETS,
 }
+
+// "Clear all data" wipes to truly empty (not back to the baseline deals).
+const EMPTY_DB = { deals: [], activity: [], followups: [], targets: TARGETS }
 
 function ensureDb() {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
@@ -230,7 +253,7 @@ app.post('/api/seed', (_req, res) => {
 })
 
 app.post('/api/reset', (_req, res) => {
-  const fresh = structuredClone(DEFAULT_DB)
+  const fresh = structuredClone(EMPTY_DB)
   writeDb(fresh)
   res.json(fresh)
 })
