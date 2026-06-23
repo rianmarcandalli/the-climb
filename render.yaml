@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: the-climb
+    runtime: node
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22.11.0
+    # --- Make your data permanent (optional, requires a paid plan) ---
+    # Render's free filesystem is wiped on every redeploy/restart, so logged
+    # deals/activity reset over time. To keep data forever, upgrade the service
+    # to a paid plan, then uncomment the disk below and the DATA_DIR var.
+    #   - key: DATA_DIR
+    #     value: /data
+    # disk:
+    #   name: climb-data
+    #   mountPath: /data
+    #   sizeGB: 1
