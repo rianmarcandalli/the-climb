@@ -4,14 +4,11 @@ This hosts the app on **Render's free tier** so you get a URL like
 `https://the-climb.onrender.com` that works on any device.
 
 > **Read this first — about your data.** Render's free plan wipes the server's
-> filesystem on every redeploy and after the app sleeps from inactivity. Because
-> The Climb stores data in a JSON file, that means **your logged deals/activity
-> can reset over time on the free plan.** Two ways to handle it:
-> - **Fine for now:** use it free to check your dashboard on your phone; re-seed
->   or re-enter if it resets.
-> - **Permanent:** upgrade the Render service to a paid plan ($7/mo) and turn on a
->   disk (steps at the bottom), *or* ask me to wire up a free hosted database
->   (Neon Postgres) so it never resets, even on free hosting.
+> filesystem on every redeploy and after the app sleeps from inactivity. To make
+> **your data permanent and free**, connect a Neon Postgres database (steps at the
+> bottom). When `DATABASE_URL` is set, the app stores everything in Postgres and
+> **nothing ever resets** — even on the free plan. If you skip it, the app falls
+> back to a disposable file and logged data can reset over time.
 
 ---
 
@@ -42,7 +39,13 @@ That's it. Every time you `git push`, Render auto-redeploys.
 
 ---
 
-## Optional — make data permanent (paid)
-1. In Render, open the service → **Settings** → change the instance type to a paid plan.
-2. Edit `render.yaml`: uncomment the `DATA_DIR` env var and the `disk:` block (already written for you), commit, and push.
-3. Render mounts a permanent 1 GB disk at `/data` and the app stores everything there forever.
+## Make data permanent (free, with Neon Postgres)
+1. Sign up free at https://neon.com ("Sign in with GitHub" is easiest).
+2. Create a project named `the-climb` and accept the defaults.
+3. Copy the **connection string** (starts with `postgresql://…`).
+4. In Render: open the service → **Environment** → the `DATABASE_URL` variable → paste the string → **Save**. Render redeploys automatically.
+5. Done. From now on every deal/activity/follow-up is stored in Postgres and survives sleeps, restarts, and redeploys forever.
+
+> Security tip: the connection string is a password to your database. After it's
+> working, you can rotate it anytime in Neon (Roles → reset password) and paste the
+> new one into Render.

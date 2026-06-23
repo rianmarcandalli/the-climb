@@ -2,90 +2,33 @@ import express from 'express'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { initStore, readDb, writeDb, usingPostgres, EMPTY_DB, DEFAULT_DB } from './store.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-// DATA_DIR is overridable so a hosted persistent disk can be mounted (e.g. /data on Render).
-const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data')
-const DB_PATH = path.join(DATA_DIR, 'db.json')
 const DIST_DIR = path.join(__dirname, '..', 'dist')
 const PORT = process.env.PORT || 3001
-
-const TARGETS = {
-  revenue: 10000,
-  closes: 8,
-  dials: 1500,
-  conversations: 300,
-  appointments: 60,
-  shows: 40,
-}
-
-// Real closed deals, baked in. Free hosting wipes the filesystem on redeploy/sleep,
-// so making these the default means the server always comes back up with the real book.
-const BASELINE_DEALS = [
-  { prospect: 'Laeshawn William', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Robert Andrews', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Jecon Kebreab', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Barath', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Brayden Smith', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Marcus Nays', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Carter', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Joseph', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Anthony', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Josh Cruz', value: 47, collected: 47, commission: 40, notes: 'Low-ticket $47' },
-  { prospect: 'Daniel Yoon', value: 3500, collected: 1800, commission: 10, notes: 'Payment plan, paying over time' },
-  { prospect: 'Landon', value: 5000, collected: 500, commission: 10, notes: '$500 down' },
-  { prospect: 'Chasen', value: 5000, collected: 500, commission: 10, notes: '$500 down' },
-].map((d, i) => ({ id: `base-${String(i + 1).padStart(2, '0')}`, date: '2026-06-23', ...d }))
-
-const DEFAULT_DB = {
-  deals: BASELINE_DEALS,
-  activity: [],
-  followups: [],
-  targets: TARGETS,
-}
-
-// "Clear all data" wipes to truly empty (not back to the baseline deals).
-const EMPTY_DB = { deals: [], activity: [], followups: [], targets: TARGETS }
-
-function ensureDb() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
-  if (!fs.existsSync(DB_PATH)) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(DEFAULT_DB, null, 2))
-  }
-}
-
-function readDb() {
-  ensureDb()
-  try {
-    const raw = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'))
-    return {
-      ...DEFAULT_DB,
-      ...raw,
-      targets: { ...DEFAULT_DB.targets, ...(raw.targets || {}) },
-    }
-  } catch {
-    return structuredClone(DEFAULT_DB)
-  }
-}
-
-function writeDb(db) {
-  ensureDb()
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2))
-}
 
 const id = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8)
 
 const app = express()
 app.use(express.json())
 
+// Small wrapper so a thrown error in an async route returns 500 instead of hanging.
+const route = (handler) => (req, res) => {
+  Promise.resolve(handler(req, res)).catch((err) => {
+    console.error('[the-climb]', err)
+    res.status(500).json({ error: 'server error' })
+  })
+}
+
 // --- Read everything in one shot (the frontend hydrates from this) ---
-app.get('/api/state', (_req, res) => {
-  res.json(readDb())
-})
+app.get('/api/state', route(async (_req, res) => {
+  res.json(await readDb())
+}))
 
 // --- Deals ---
-app.post('/api/deals', (req, res) => {
-  const db = readDb()
+app.post('/api/deals', route(async (req, res) => {
+  const db = await readDb()
   const b = req.body || {}
   const deal = {
     id: id(),
@@ -97,20 +40,20 @@ app.post('/api/deals', (req, res) => {
     notes: String(b.notes || ''),
   }
   db.deals.push(deal)
-  writeDb(db)
+  await writeDb(db)
   res.status(201).json(deal)
-})
+}))
 
-app.delete('/api/deals/:id', (req, res) => {
-  const db = readDb()
+app.delete('/api/deals/:id', route(async (req, res) => {
+  const db = await readDb()
   db.deals = db.deals.filter((d) => d.id !== req.params.id)
-  writeDb(db)
+  await writeDb(db)
   res.json({ ok: true })
-})
+}))
 
 // --- Activity (one entry per date; posting an existing date overwrites it) ---
-app.post('/api/activity', (req, res) => {
-  const db = readDb()
+app.post('/api/activity', route(async (req, res) => {
+  const db = await readDb()
   const b = req.body || {}
   const entry = {
     id: id(),
@@ -128,20 +71,20 @@ app.post('/api/activity', (req, res) => {
   } else {
     db.activity.push(entry)
   }
-  writeDb(db)
+  await writeDb(db)
   res.status(201).json(entry)
-})
+}))
 
-app.delete('/api/activity/:id', (req, res) => {
-  const db = readDb()
+app.delete('/api/activity/:id', route(async (req, res) => {
+  const db = await readDb()
   db.activity = db.activity.filter((a) => a.id !== req.params.id)
-  writeDb(db)
+  await writeDb(db)
   res.json({ ok: true })
-})
+}))
 
 // --- Follow-ups ---
-app.post('/api/followups', (req, res) => {
-  const db = readDb()
+app.post('/api/followups', route(async (req, res) => {
+  const db = await readDb()
   const b = req.body || {}
   const f = {
     id: id(),
@@ -152,28 +95,28 @@ app.post('/api/followups', (req, res) => {
     notes: String(b.notes || ''),
   }
   db.followups.push(f)
-  writeDb(db)
+  await writeDb(db)
   res.status(201).json(f)
-})
+}))
 
-app.delete('/api/followups/:id', (req, res) => {
-  const db = readDb()
+app.delete('/api/followups/:id', route(async (req, res) => {
+  const db = await readDb()
   db.followups = db.followups.filter((f) => f.id !== req.params.id)
-  writeDb(db)
+  await writeDb(db)
   res.json({ ok: true })
-})
+}))
 
 // --- Targets ---
-app.put('/api/targets', (req, res) => {
-  const db = readDb()
+app.put('/api/targets', route(async (req, res) => {
+  const db = await readDb()
   const b = req.body || {}
   const keys = ['revenue', 'closes', 'dials', 'conversations', 'appointments', 'shows']
   for (const k of keys) {
     if (b[k] !== undefined) db.targets[k] = Number(b[k]) || 0
   }
-  writeDb(db)
+  await writeDb(db)
   res.json(db.targets)
-})
+}))
 
 // --- Demo data: load realistic sample / clear everything ---
 function sampleData() {
@@ -246,17 +189,17 @@ function sampleData() {
   return { deals, activity, followups, targets: structuredClone(DEFAULT_DB.targets) }
 }
 
-app.post('/api/seed', (_req, res) => {
+app.post('/api/seed', route(async (_req, res) => {
   const data = sampleData()
-  writeDb(data)
+  await writeDb(data)
   res.json(data)
-})
+}))
 
-app.post('/api/reset', (_req, res) => {
+app.post('/api/reset', route(async (_req, res) => {
   const fresh = structuredClone(EMPTY_DB)
-  writeDb(fresh)
+  await writeDb(fresh)
   res.json(fresh)
-})
+}))
 
 // --- Serve built frontend in production ---
 if (fs.existsSync(DIST_DIR)) {
@@ -264,6 +207,14 @@ if (fs.existsSync(DIST_DIR)) {
   app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')))
 }
 
-app.listen(PORT, () => {
-  console.log(`[the-climb] API + data on http://localhost:${PORT}`)
-})
+initStore()
+  .then(() => {
+    app.listen(PORT, () => {
+      const backend = usingPostgres ? 'Postgres' : 'local file'
+      console.log(`[the-climb] API on http://localhost:${PORT} (data: ${backend})`)
+    })
+  })
+  .catch((err) => {
+    console.error('[the-climb] failed to start store:', err)
+    process.exit(1)
+  })

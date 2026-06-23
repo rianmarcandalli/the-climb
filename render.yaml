@@ -8,13 +8,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.11.0
-    # --- Make your data permanent (optional, requires a paid plan) ---
-    # Render's free filesystem is wiped on every redeploy/restart, so logged
-    # deals/activity reset over time. To keep data forever, upgrade the service
-    # to a paid plan, then uncomment the disk below and the DATA_DIR var.
-    #   - key: DATA_DIR
-    #     value: /data
-    # disk:
-    #   name: climb-data
-    #   mountPath: /data
-    #   sizeGB: 1
+      # Paste your Neon connection string here in the Render dashboard (kept secret).
+      # When set, the app stores everything in Postgres so data NEVER resets —
+      # even on the free plan. Leave it blank to use the disposable local file.
+      - key: DATABASE_URL
+        sync: false
