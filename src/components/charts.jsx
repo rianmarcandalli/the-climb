@@ -17,7 +17,7 @@ import {
 } from 'recharts'
 import { prettyDate } from '../lib/format.js'
 
-const ACCENT = '#23C7B1'
+const ACCENT = '#2D8CDB'
 const GRID = '#23282F'
 const AXIS = '#646C76'
 

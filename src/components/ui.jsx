@@ -76,7 +76,7 @@ export function Button({
 }) {
   const styles = {
     primary:
-      'bg-accent text-[#06100E] font-semibold hover:bg-accent/90 active:bg-accent/80',
+      'bg-accent text-white font-semibold hover:bg-accent/90 active:bg-accent/80',
     default:
       'border border-line bg-elevated text-ink hover:bg-line/40 hover:border-line',
     ghost: 'text-muted hover:text-ink hover:bg-white/5',
